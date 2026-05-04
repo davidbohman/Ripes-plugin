@@ -10,6 +10,7 @@
 
 // Functional units
 #include "processors/RISC-V/riscv.h"
+#include "processors/RISC-V/rv5s/rv5s_branchpredictor.h" //ADDED FOR EDA333 plugin: Branch predictor
 #include "processors/RISC-V/rv_alu.h"
 #include "processors/RISC-V/rv_branch.h"
 #include "processors/RISC-V/rv_control.h"
@@ -44,239 +45,259 @@ class RV5S : public RipesVSRTLProcessor {
 public:
   enum Stage { IF = 0, ID = 1, EX = 2, MEM = 3, WB = 4, STAGECOUNT };
   RV5S(const QStringList &extensions)
-      : RipesVSRTLProcessor("5-Stage RISC-V Processor") {
-    m_enabledISA = ISAInfoRegistry::getISA<XLenToRVISA<XLEN>()>(extensions);
-    decode->setISA(m_enabledISA);
-    uncompress->setISA(m_enabledISA);
+    : RipesVSRTLProcessor("5-Stage RISC-V Processor") {
+  m_enabledISA = ISAInfoRegistry::getISA<XLenToRVISA<XLEN>()>(extensions);
+  decode->setISA(m_enabledISA);
+  uncompress->setISA(m_enabledISA);
 
-    // -----------------------------------------------------------------------
-    // Program counter
-    pc_reg->out >> pc_4->op1;
-    pc_inc->out >> pc_4->op2;
-    pc_src->out >> pc_reg->in;
-    0 >> pc_reg->clear;
-    hzunit->hazardFEEnable >> pc_reg->enable;
+  // -----------------------------------------------------------------------
+  // Program counter
+  pc_reg->out >> pc_4->op1;
+  pc_inc->out >> pc_4->op2;
+  pc_src->out >> pc_reg->in;
+  0 >> pc_reg->clear;
+  hzunit->hazardFEEnable >> pc_reg->enable;
 
-    2 >> pc_inc->get(PcInc::INC2);
-    4 >> pc_inc->get(PcInc::INC4);
-    uncompress->Pc_Inc >> pc_inc->select;
+  2 >> pc_inc->get(PcInc::INC2);
+  4 >> pc_inc->get(PcInc::INC4);
+  uncompress->Pc_Inc >> pc_inc->select;
 
-    // Note: pc_src works uses the PcSrc enum, but is selected by the boolean
-    // signal from the controlflow OR gate. PcSrc enum values must adhere to the
-    // boolean 0/1 values.
-    controlflow_or->out >> pc_src->select;
+  // Note: pc_src works uses the PcSrc enum, but is selected by the boolean
+  // signal from the controlflow OR gate. PcSrc enum values must adhere to the
+  // boolean 0/1 values.
+  controlflow_or->out >> pc_src->select;
 
-    controlflow_or->out >> *efsc_or->in[0];
-    ecallChecker->syscallExit >> *efsc_or->in[1];
+  controlflow_or->out >> *efsc_or->in[0];
+  ecallChecker->syscallExit >> *efsc_or->in[1];
 
-    efsc_or->out >> *efschz_or->in[0];
-    hzunit->hazardIDEXClear >> *efschz_or->in[1];
+  efsc_or->out >> *efschz_or->in[0];
+  hzunit->hazardIDEXClear >> *efschz_or->in[1];
 
-    // -----------------------------------------------------------------------
-    // Instruction memory
-    pc_reg->out >> instr_mem->addr;
-    instr_mem->setMemory(m_memory);
+  // -----------------------------------------------------------------------
+  // Instruction memory
+  pc_reg->out >> instr_mem->addr;
+  instr_mem->setMemory(m_memory);
 
-    // -----------------------------------------------------------------------
-    // Decode
-    ifid_reg->instr_out >> decode->instr;
+  // -----------------------------------------------------------------------
+  // Decode
+  ifid_reg->instr_out >> decode->instr;
 
-    // -----------------------------------------------------------------------
-    // Control signals
-    decode->opcode >> control->opcode;
+  // -----------------------------------------------------------------------
+  // Control signals
+  decode->opcode >> control->opcode;
 
-    // -----------------------------------------------------------------------
-    // Immediate
-    decode->opcode >> immediate->opcode;
-    ifid_reg->instr_out >> immediate->instr;
+  // -----------------------------------------------------------------------
+  // Immediate
+  decode->opcode >> immediate->opcode;
+  ifid_reg->instr_out >> immediate->instr;
 
-    // -----------------------------------------------------------------------
-    // Registers
-    decode->r1_reg_idx >> registerFile->r1_addr;
-    decode->r2_reg_idx >> registerFile->r2_addr;
-    reg_wr_src->out >> registerFile->data_in;
+  // -----------------------------------------------------------------------
+  // Registers
+  decode->r1_reg_idx >> registerFile->r1_addr;
+  decode->r2_reg_idx >> registerFile->r2_addr;
+  reg_wr_src->out >> registerFile->data_in;
 
-    memwb_reg->wr_reg_idx_out >> registerFile->wr_addr;
-    memwb_reg->reg_do_write_out >> registerFile->wr_en;
-    memwb_reg->mem_read_out >> reg_wr_src->get(RegWrSrc::MEMREAD);
-    memwb_reg->alures_out >> reg_wr_src->get(RegWrSrc::ALURES);
-    memwb_reg->pc4_out >> reg_wr_src->get(RegWrSrc::PC4);
-    memwb_reg->reg_wr_src_ctrl_out >> reg_wr_src->select;
+  memwb_reg->wr_reg_idx_out >> registerFile->wr_addr;
+  memwb_reg->reg_do_write_out >> registerFile->wr_en;
+  memwb_reg->mem_read_out >> reg_wr_src->get(RegWrSrc::MEMREAD);
+  memwb_reg->alures_out >> reg_wr_src->get(RegWrSrc::ALURES);
+  memwb_reg->pc4_out >> reg_wr_src->get(RegWrSrc::PC4);
+  memwb_reg->reg_wr_src_ctrl_out >> reg_wr_src->select;
 
-    registerFile->setMemory(m_regMem);
+  registerFile->setMemory(m_regMem);
 
-    // -----------------------------------------------------------------------
-    // Branch
-    idex_reg->br_op_out >> branch->comp_op;
-    reg1_fw_src->out >> branch->op1;
-    reg2_fw_src->out >> branch->op2;
+  // -----------------------------------------------------------------------
+  // Branch
+  idex_reg->br_op_out >> branch->comp_op;
+  reg1_fw_src->out >> branch->op1;
+  reg2_fw_src->out >> branch->op2;
 
-    branch->res >> *br_and->in[0];
-    idex_reg->do_br_out >> *br_and->in[1];
-    br_and->out >> *controlflow_or->in[0];
-    idex_reg->do_jmp_out >> *controlflow_or->in[1];
+  branch->res >> *br_and->in[0];
+  idex_reg->do_br_out >> *br_and->in[1];
+  // CHANGED FOR EDA333: br_and->out no longer drives controlflow_or->in[0]
+  // directly. It now feeds the branch predictor, which drives controlflow_or->in[0].
+  idex_reg->do_jmp_out >> *controlflow_or->in[1];
 
-    pc_4->out >> pc_src->get(PcSrc::PC4);
-    alu->res >> pc_src->get(PcSrc::ALU);
+  pc_4->out >> pc_src->get(PcSrc::PC4);
+  alu->res >> pc_src->get(PcSrc::ALU);
 
-    // -----------------------------------------------------------------------
-    // ALU
+  // -----------------------------------------------------------------------
+  // ALU
 
-    // Forwarding multiplexers
-    idex_reg->r1_out >> reg1_fw_src->get(ForwardingSrc::IdStage);
-    exmem_reg->alures_out >>
-        reg1_fw_src->get(
-            ForwardingSrc::MemStage); // Todo: Mem stage needs a mux to allow
-                                      // for AUIPC forwarding
-    reg_wr_src->out >> reg1_fw_src->get(ForwardingSrc::WbStage);
-    funit->alu_reg1_forwarding_ctrl >> reg1_fw_src->select;
+  // Forwarding multiplexers
+  idex_reg->r1_out >> reg1_fw_src->get(ForwardingSrc::IdStage);
+  exmem_reg->alures_out >>
+      reg1_fw_src->get(
+          ForwardingSrc::MemStage);
+  reg_wr_src->out >> reg1_fw_src->get(ForwardingSrc::WbStage);
+  funit->alu_reg1_forwarding_ctrl >> reg1_fw_src->select;
 
-    idex_reg->r2_out >> reg2_fw_src->get(ForwardingSrc::IdStage);
-    exmem_reg->alures_out >> reg2_fw_src->get(ForwardingSrc::MemStage);
-    reg_wr_src->out >> reg2_fw_src->get(ForwardingSrc::WbStage);
-    funit->alu_reg2_forwarding_ctrl >> reg2_fw_src->select;
+  idex_reg->r2_out >> reg2_fw_src->get(ForwardingSrc::IdStage);
+  exmem_reg->alures_out >> reg2_fw_src->get(ForwardingSrc::MemStage);
+  reg_wr_src->out >> reg2_fw_src->get(ForwardingSrc::WbStage);
+  funit->alu_reg2_forwarding_ctrl >> reg2_fw_src->select;
 
-    // ALU operand multiplexers
-    reg1_fw_src->out >> alu_op1_src->get(AluSrc1::REG1);
-    idex_reg->pc_out >> alu_op1_src->get(AluSrc1::PC);
-    idex_reg->alu_op1_ctrl_out >> alu_op1_src->select;
+  // ALU operand multiplexers
+  reg1_fw_src->out >> alu_op1_src->get(AluSrc1::REG1);
+  idex_reg->pc_out >> alu_op1_src->get(AluSrc1::PC);
+  idex_reg->alu_op1_ctrl_out >> alu_op1_src->select;
 
-    reg2_fw_src->out >> alu_op2_src->get(AluSrc2::REG2);
-    idex_reg->imm_out >> alu_op2_src->get(AluSrc2::IMM);
-    idex_reg->alu_op2_ctrl_out >> alu_op2_src->select;
+  reg2_fw_src->out >> alu_op2_src->get(AluSrc2::REG2);
+  idex_reg->imm_out >> alu_op2_src->get(AluSrc2::IMM);
+  idex_reg->alu_op2_ctrl_out >> alu_op2_src->select;
 
-    alu_op1_src->out >> alu->op1;
-    alu_op2_src->out >> alu->op2;
+  alu_op1_src->out >> alu->op1;
+  alu_op2_src->out >> alu->op2;
 
-    idex_reg->alu_ctrl_out >> alu->ctrl;
+  idex_reg->alu_ctrl_out >> alu->ctrl;
 
-    // -----------------------------------------------------------------------
-    // Data memory
-    exmem_reg->alures_out >> data_mem->addr;
-    exmem_reg->mem_do_write_out >> data_mem->wr_en;
-    exmem_reg->r2_out >> data_mem->data_in;
-    exmem_reg->mem_op_out >> data_mem->op;
-    data_mem->mem->setMemory(m_memory);
+  // -----------------------------------------------------------------------
+  // Data memory
+  exmem_reg->alures_out >> data_mem->addr;
+  exmem_reg->mem_do_write_out >> data_mem->wr_en;
+  exmem_reg->r2_out >> data_mem->data_in;
+  exmem_reg->mem_op_out >> data_mem->op;
+  data_mem->mem->setMemory(m_memory);
 
-    // -----------------------------------------------------------------------
-    // Ecall checker
+  // -----------------------------------------------------------------------
+  // Ecall checker
+  idex_reg->opcode_out >> ecallChecker->opcode;
+  ecallChecker->setSyscallCallback(&trapHandler);
+  hzunit->stallEcallHandling >> ecallChecker->stallEcallHandling;
 
-    idex_reg->opcode_out >> ecallChecker->opcode;
-    ecallChecker->setSyscallCallback(&trapHandler);
-    hzunit->stallEcallHandling >> ecallChecker->stallEcallHandling;
+  // -----------------------------------------------------------------------
+  // ADDED FOR EDA333: Wire the ifid_mispred_or gate which combines the normal
+  // efsc_or flush signal with the new misprediction flush signal, so that
+  // IF/ID is cleared on either a control flow change or a branch misprediction.
+  efsc_or->out >> *ifid_mispred_or->in[0];
+  branchPredictor->mispredict >> *ifid_mispred_or->in[1];
 
-    // -----------------------------------------------------------------------
-    // IF/ID
-    pc_4->out >> ifid_reg->pc4_in;
-    pc_reg->out >> ifid_reg->pc_in;
-    uncompress->exp_instr >> ifid_reg->instr_in;
-    hzunit->hazardFEEnable >> ifid_reg->enable;
-    efsc_or->out >> ifid_reg->clear;
-    1 >> ifid_reg->valid_in; // Always valid unless register is cleared
+  // -----------------------------------------------------------------------
+  // IF/ID
+  pc_4->out >> ifid_reg->pc4_in;
+  pc_reg->out >> ifid_reg->pc_in;
+  uncompress->exp_instr >> ifid_reg->instr_in;
+  hzunit->hazardFEEnable >> ifid_reg->enable;
+  // CHANGED FOR EDA333: was efsc_or->out, now uses ifid_mispred_or to also
+  // flush on branch misprediction.
+  ifid_mispred_or->out >> ifid_reg->clear;
+  1 >> ifid_reg->valid_in;
 
-    // -----------------------------------------------------------------------
-    // Increment
-    instr_mem->data_out >> uncompress->instr;
+  // -----------------------------------------------------------------------
+  // Increment
+  instr_mem->data_out >> uncompress->instr;
 
-    // -----------------------------------------------------------------------
-    // ID/EX
-    hzunit->hazardIDEXEnable >> idex_reg->enable;
-    hzunit->hazardIDEXClear >> idex_reg->stalled_in;
-    efschz_or->out >> idex_reg->clear;
+  // -----------------------------------------------------------------------
+  // ID/EX
+  hzunit->hazardIDEXEnable >> idex_reg->enable;
+  hzunit->hazardIDEXClear >> idex_reg->stalled_in;
+  efschz_or->out >> idex_reg->clear;
 
-    // Data
-    ifid_reg->pc4_out >> idex_reg->pc4_in;
-    ifid_reg->pc_out >> idex_reg->pc_in;
-    registerFile->r1_out >> idex_reg->r1_in;
-    registerFile->r2_out >> idex_reg->r2_in;
-    immediate->imm >> idex_reg->imm_in;
+  // Data
+  ifid_reg->pc4_out >> idex_reg->pc4_in;
+  ifid_reg->pc_out >> idex_reg->pc_in;
+  registerFile->r1_out >> idex_reg->r1_in;
+  registerFile->r2_out >> idex_reg->r2_in;
+  immediate->imm >> idex_reg->imm_in;
 
-    // Control
-    decode->wr_reg_idx >> idex_reg->wr_reg_idx_in;
-    control->reg_wr_src_ctrl >> idex_reg->reg_wr_src_ctrl_in;
-    control->reg_do_write_ctrl >> idex_reg->reg_do_write_in;
-    control->alu_op1_ctrl >> idex_reg->alu_op1_ctrl_in;
-    control->alu_op2_ctrl >> idex_reg->alu_op2_ctrl_in;
-    control->mem_do_write_ctrl >> idex_reg->mem_do_write_in;
-    control->alu_ctrl >> idex_reg->alu_ctrl_in;
-    control->mem_ctrl >> idex_reg->mem_op_in;
-    control->comp_ctrl >> idex_reg->br_op_in;
-    control->do_branch >> idex_reg->do_br_in;
-    control->do_jump >> idex_reg->do_jmp_in;
-    decode->r1_reg_idx >> idex_reg->rd_reg1_idx_in;
-    decode->r2_reg_idx >> idex_reg->rd_reg2_idx_in;
-    decode->opcode >> idex_reg->opcode_in;
-    control->mem_do_read_ctrl >> idex_reg->mem_do_read_in;
+  // Control
+  decode->wr_reg_idx >> idex_reg->wr_reg_idx_in;
+  control->reg_wr_src_ctrl >> idex_reg->reg_wr_src_ctrl_in;
+  control->reg_do_write_ctrl >> idex_reg->reg_do_write_in;
+  control->alu_op1_ctrl >> idex_reg->alu_op1_ctrl_in;
+  control->alu_op2_ctrl >> idex_reg->alu_op2_ctrl_in;
+  control->mem_do_write_ctrl >> idex_reg->mem_do_write_in;
+  control->alu_ctrl >> idex_reg->alu_ctrl_in;
+  control->mem_ctrl >> idex_reg->mem_op_in;
+  control->comp_ctrl >> idex_reg->br_op_in;
+  control->do_branch >> idex_reg->do_br_in;
+  control->do_jump >> idex_reg->do_jmp_in;
+  decode->r1_reg_idx >> idex_reg->rd_reg1_idx_in;
+  decode->r2_reg_idx >> idex_reg->rd_reg2_idx_in;
+  decode->opcode >> idex_reg->opcode_in;
+  control->mem_do_read_ctrl >> idex_reg->mem_do_read_in;
 
-    ifid_reg->valid_out >> idex_reg->valid_in;
+  ifid_reg->valid_out >> idex_reg->valid_in;
 
-    // -----------------------------------------------------------------------
-    // EX/MEM
-    1 >> exmem_reg->enable;
-    hzunit->hazardEXMEMClear >> exmem_reg->clear;
-    hzunit->hazardEXMEMClear >> *mem_stalled_or->in[0];
-    idex_reg->stalled_out >> *mem_stalled_or->in[1];
-    mem_stalled_or->out >> exmem_reg->stalled_in;
+  // -----------------------------------------------------------------------
+  // EX/MEM
+  1 >> exmem_reg->enable;
+  hzunit->hazardEXMEMClear >> exmem_reg->clear;
+  hzunit->hazardEXMEMClear >> *mem_stalled_or->in[0];
+  idex_reg->stalled_out >> *mem_stalled_or->in[1];
+  mem_stalled_or->out >> exmem_reg->stalled_in;
 
-    // Data
-    idex_reg->pc_out >> exmem_reg->pc_in;
-    idex_reg->pc4_out >> exmem_reg->pc4_in;
-    reg2_fw_src->out >> exmem_reg->r2_in;
-    alu->res >> exmem_reg->alures_in;
+  // Data
+  idex_reg->pc_out >> exmem_reg->pc_in;
+  idex_reg->pc4_out >> exmem_reg->pc4_in;
+  reg2_fw_src->out >> exmem_reg->r2_in;
+  alu->res >> exmem_reg->alures_in;
 
-    // Control
-    idex_reg->reg_wr_src_ctrl_out >> exmem_reg->reg_wr_src_ctrl_in;
-    idex_reg->wr_reg_idx_out >> exmem_reg->wr_reg_idx_in;
-    idex_reg->reg_do_write_out >> exmem_reg->reg_do_write_in;
-    idex_reg->mem_do_write_out >> exmem_reg->mem_do_write_in;
-    idex_reg->mem_do_read_out >> exmem_reg->mem_do_read_in;
-    idex_reg->mem_op_out >> exmem_reg->mem_op_in;
+  // Control
+  idex_reg->reg_wr_src_ctrl_out >> exmem_reg->reg_wr_src_ctrl_in;
+  idex_reg->wr_reg_idx_out >> exmem_reg->wr_reg_idx_in;
+  idex_reg->reg_do_write_out >> exmem_reg->reg_do_write_in;
+  idex_reg->mem_do_write_out >> exmem_reg->mem_do_write_in;
+  idex_reg->mem_do_read_out >> exmem_reg->mem_do_read_in;
+  idex_reg->mem_op_out >> exmem_reg->mem_op_in;
 
-    idex_reg->valid_out >> exmem_reg->valid_in;
+  idex_reg->valid_out >> exmem_reg->valid_in;
 
-    // -----------------------------------------------------------------------
-    // MEM/WB
+  // -----------------------------------------------------------------------
+  // MEM/WB
+  exmem_reg->stalled_out >> memwb_reg->stalled_in;
 
-    exmem_reg->stalled_out >> memwb_reg->stalled_in;
+  // Data
+  exmem_reg->pc_out >> memwb_reg->pc_in;
+  exmem_reg->pc4_out >> memwb_reg->pc4_in;
+  exmem_reg->alures_out >> memwb_reg->alures_in;
+  data_mem->data_out >> memwb_reg->mem_read_in;
 
-    // Data
-    exmem_reg->pc_out >> memwb_reg->pc_in;
-    exmem_reg->pc4_out >> memwb_reg->pc4_in;
-    exmem_reg->alures_out >> memwb_reg->alures_in;
-    data_mem->data_out >> memwb_reg->mem_read_in;
+  // Control
+  exmem_reg->reg_wr_src_ctrl_out >> memwb_reg->reg_wr_src_ctrl_in;
+  exmem_reg->wr_reg_idx_out >> memwb_reg->wr_reg_idx_in;
+  exmem_reg->reg_do_write_out >> memwb_reg->reg_do_write_in;
 
-    // Control
-    exmem_reg->reg_wr_src_ctrl_out >> memwb_reg->reg_wr_src_ctrl_in;
-    exmem_reg->wr_reg_idx_out >> memwb_reg->wr_reg_idx_in;
-    exmem_reg->reg_do_write_out >> memwb_reg->reg_do_write_in;
+  exmem_reg->valid_out >> memwb_reg->valid_in;
 
-    exmem_reg->valid_out >> memwb_reg->valid_in;
+  // -----------------------------------------------------------------------
+  // Forwarding unit
+  idex_reg->rd_reg1_idx_out >> funit->id_reg1_idx;
+  idex_reg->rd_reg2_idx_out >> funit->id_reg2_idx;
 
-    // -----------------------------------------------------------------------
-    // Forwarding unit
-    idex_reg->rd_reg1_idx_out >> funit->id_reg1_idx;
-    idex_reg->rd_reg2_idx_out >> funit->id_reg2_idx;
+  exmem_reg->wr_reg_idx_out >> funit->mem_reg_wr_idx;
+  exmem_reg->reg_do_write_out >> funit->mem_reg_wr_en;
 
-    exmem_reg->wr_reg_idx_out >> funit->mem_reg_wr_idx;
-    exmem_reg->reg_do_write_out >> funit->mem_reg_wr_en;
+  memwb_reg->wr_reg_idx_out >> funit->wb_reg_wr_idx;
+  memwb_reg->reg_do_write_out >> funit->wb_reg_wr_en;
 
-    memwb_reg->wr_reg_idx_out >> funit->wb_reg_wr_idx;
-    memwb_reg->reg_do_write_out >> funit->wb_reg_wr_en;
+  // -----------------------------------------------------------------------
+  // Hazard detection unit
+  decode->r1_reg_idx >> hzunit->id_reg1_idx;
+  decode->r2_reg_idx >> hzunit->id_reg2_idx;
 
-    // -----------------------------------------------------------------------
-    // Hazard detection unit
-    decode->r1_reg_idx >> hzunit->id_reg1_idx;
-    decode->r2_reg_idx >> hzunit->id_reg2_idx;
+  idex_reg->mem_do_read_out >> hzunit->ex_do_mem_read_en;
+  idex_reg->wr_reg_idx_out >> hzunit->ex_reg_wr_idx;
 
-    idex_reg->mem_do_read_out >> hzunit->ex_do_mem_read_en;
-    idex_reg->wr_reg_idx_out >> hzunit->ex_reg_wr_idx;
+  exmem_reg->reg_do_write_out >> hzunit->mem_do_reg_write;
 
-    exmem_reg->reg_do_write_out >> hzunit->mem_do_reg_write;
+  memwb_reg->reg_do_write_out >> hzunit->wb_do_reg_write;
 
-    memwb_reg->reg_do_write_out >> hzunit->wb_do_reg_write;
+  idex_reg->opcode_out >> hzunit->opcode;
 
-    idex_reg->opcode_out >> hzunit->opcode;
-  }
+  // -----------------------------------------------------------------------
+  // ADDED FOR EDA333: Branch predictor connections.
+  // - do_br: tells the predictor a branch instruction is in ID stage
+  // - branch_taken: actual resolution from EX stage (br_and output)
+  // - is_branch: confirms a branch is in EX stage (from idex register)
+  // - mispredict drives controlflow_or->in[0], replacing the direct br_and
+  //   connection. For AlwaysNotTaken this fires when branch was actually taken.
+  //   For AlwaysTaken this fires when branch was actually not taken.
+  control->do_branch >> branchPredictor->do_br;
+  br_and->out >> branchPredictor->branch_taken;
+  idex_reg->do_br_out >> branchPredictor->is_branch;
+  branchPredictor->mispredict >> *controlflow_or->in[0];
+}
 
   // Design subcomponents
   SUBCOMPONENT(registerFile, TYPE(RegisterFile<XLEN, true>));
@@ -325,6 +346,10 @@ public:
   SUBCOMPONENT(efschz_or, TYPE(Or<1, 2>));
 
   SUBCOMPONENT(mem_stalled_or, TYPE(Or<1, 2>));
+
+  //ADDED FOR EDA333 plugin: Branch predictor
+  SUBCOMPONENT(branchPredictor, TYPE(BranchPredictor<XLEN>));
+  SUBCOMPONENT(ifid_mispred_or, TYPE(Or<1, 2>));
 
   // Address spaces
   ADDRESSSPACEMM(m_memory);
@@ -437,6 +462,12 @@ public:
   void setPCInitialValue(AInt address) override {
     pc_reg->setInitValue(address);
   }
+  
+  // ADDED FOR EDA333 plugin: Added function to set branch prediction policy from Ripes interface
+  void setBranchPredictionPolicy(BranchPredictionPolicy policy) {
+    branchPredictor->m_policy = policy;
+  }
+
   AddressSpaceMM &getMemory() override { return *m_memory; }
   VInt getRegister(const std::string_view &, unsigned i) const override {
     return registerFile->getRegister(i);

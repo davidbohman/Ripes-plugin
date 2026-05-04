@@ -5,6 +5,7 @@
 Makefile
 build*
 .vscode
+*.idx
 
 
 # Qt generated files

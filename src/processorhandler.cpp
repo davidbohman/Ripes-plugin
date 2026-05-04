@@ -14,6 +14,9 @@
 #include <QMessageBox>
 #include <QtConcurrent/QtConcurrent>
 
+// ADDED FOR EDA333:
+#include "processors/RISC-V/rv5s/rv5s.h"
+
 namespace Ripes {
 
 ProcessorHandler::ProcessorHandler() {
@@ -46,7 +49,6 @@ ProcessorHandler::ProcessorHandler() {
   _selectProcessor(
       m_currentID, extensions,
       ProcessorRegistry::getDescription(m_currentID).defaultRegisterVals);
-
   // The m_procStateChangeTimer limits maximum frequency of which the
   // procStateChangedNonRun is emitted.
   m_procStateChangeTimer.setSingleShot(true);
@@ -320,6 +322,14 @@ void ProcessorHandler::_selectProcessor(const ProcessorID &id,
   m_currentProcessor->trapHandler = [this] { syscallTrap(); };
 
   m_currentProcessor->postConstruct();
+
+  // ADDED FOR EDA333: Set branch prediction policy on the processor if supported
+  if (auto *rv5s32 = dynamic_cast<vsrtl::core::RV5S<uint32_t>*>(m_currentProcessor.get())) {
+      rv5s32->setBranchPredictionPolicy(m_branchPredictionPolicy);
+  } else if (auto *rv5s64 = dynamic_cast<vsrtl::core::RV5S<uint64_t>*>(m_currentProcessor.get())) {
+      rv5s64->setBranchPredictionPolicy(m_branchPredictionPolicy);
+  }
+
   createAssemblerForCurrentISA();
 
   if (keepProgram && m_program) {

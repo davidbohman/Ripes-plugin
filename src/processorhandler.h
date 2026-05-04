@@ -9,7 +9,9 @@
 #include "assembler/assembler.h"
 #include "assembler/program.h"
 #include "processorregistry.h"
+#include "processors/RISC-V/rv5s/rv5s.h"
 #include "processors/interface/ripesprocessor.h"
+#include "processors/RISC-V/rv5s/rv5s_branchpredictor.h"
 #include "syscall/ripes_syscall.h"
 
 #include "VSRTL/graphics/vsrtl_widget.h"
@@ -203,6 +205,16 @@ public:
     emit get()->memoryFocusAddressChanged(address);
   }
 
+  static void setBranchPrediction(vsrtl::core::BranchPredictionPolicy policy) {
+    get()->m_branchPredictionPolicy = policy;
+    // Re-apply immediately to the current processor if it's an RV5S
+    if (auto *rv5s32 = dynamic_cast<vsrtl::core::RV5S<uint32_t>*>(get()->m_currentProcessor.get())) {
+        rv5s32->setBranchPredictionPolicy(policy);
+    } else if (auto *rv5s64 = dynamic_cast<vsrtl::core::RV5S<uint64_t>*>(get()->m_currentProcessor.get())) {
+        rv5s64->setBranchPredictionPolicy(policy);
+    }
+}
+
   /**
    * @brief run
    * Asynchronously runs the current processor. During this, the processor will
@@ -377,5 +389,9 @@ private:
   QSemaphore m_sem;
   std::vector<std::unique_ptr<vsrtl::GallantSignalWrapperBase>>
       m_signalWrappers;
+
+
+  // ADDED FOR EDA333:
+  vsrtl::core::BranchPredictionPolicy m_branchPredictionPolicy = vsrtl::core::BranchPredictionPolicy::AlwaysNotTaken;
 };
 } // namespace Ripes

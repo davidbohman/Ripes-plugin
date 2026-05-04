@@ -22,6 +22,7 @@ public:
   RegisterInitialization getRegisterInitialization() const;
   const Layout *getSelectedLayout() const;
   QStringList getEnabledExtensions() const;
+  QString getSelectedBranchPrediction() const; // ADDED FOR EDA333 PLUGIN
 
 private slots:
   void selectionChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
@@ -31,6 +32,7 @@ private:
 
   enum ProcessorTreeColums { ProcessorColumn, ColumnCount };
   ProcessorID m_selectedID;
+  QString m_selectedBranchPrediction; // ADDED FOR EDA333 PLUGIN
   Ui::ProcessorSelectionDialog *m_ui;
   std::map<ProcessorID, QStringList> m_selectedExtensionsForID;
 };

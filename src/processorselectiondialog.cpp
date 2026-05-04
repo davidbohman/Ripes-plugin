@@ -15,6 +15,12 @@ ProcessorSelectionDialog::ProcessorSelectionDialog(QWidget *parent)
   m_ui->setupUi(this);
   setWindowTitle("Select Processor");
 
+  // ADDED FOR EDA333 PLUGIN
+  m_ui->Branch_prediction->addItem("Always Taken");
+  m_ui->Branch_prediction->addItem("Always Not Taken");
+
+
+
   // Initialize top level ISA items
   m_ui->processors->setHeaderHidden(true);
   std::map<QString, QTreeWidgetItem *> isaFamilyItems;

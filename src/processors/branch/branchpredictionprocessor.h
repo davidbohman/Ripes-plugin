@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../ripes_types.h"
+#include "../../isa/isa_types.h" // updated from obsolete ripes_types.h for new ISA/processor interfaces
 #include <memory>
 
 namespace Ripes {

@@ -219,7 +219,7 @@ ProcessorRegistry::ProcessorRegistry() {
                {{0, 2}, QPointF{0.54, 0}},
                {{0, 3}, QPointF{0.78, 0}},
                {{0, 4}, QPointF{0.9, 0}}}}};
-  defRegVals = {{2, 0x7ffffff0}, {3, 0x10000000}};
+  defRegVals = {{RVISA::GPR, {{2, 0x7ffffff0}, {3, 0x10000000}}}}; // updated to use RVISA register file map syntax
   addProcessor(ProcInfo<vsrtl::core::RV5S_BR<uint32_t>>(
       ProcessorID::RV32_5S_BR, "5-stage processor w/ branch prediction",
       rv5s_br_desc, layouts, defRegVals));

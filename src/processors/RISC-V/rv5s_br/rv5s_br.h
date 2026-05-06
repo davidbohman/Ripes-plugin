@@ -525,7 +525,7 @@ public:
     pc_reg->setInitValue(address);
   }
   AddressSpaceMM &getMemory() override { return *m_memory; }
-  VInt getRegister(RegisterFileType, unsigned i) const override {
+  VInt getRegister(const std::string_view &, unsigned i) const override { // updated to new register file key type
     return registerFile->getRegister(i);
   }
   void finalize(FinalizeReason fr) override {
@@ -563,7 +563,7 @@ public:
     return allStagesInvalid;
   }
 
-  void setRegister(RegisterFileType, unsigned i, VInt v) override {
+  void setRegister(const std::string_view &, unsigned i, VInt v) override { // updated to new register file key type
     setSynchronousValue(registerFile->_wr_mem, i, v);
   }
 
@@ -625,16 +625,19 @@ public:
         {"M", "C"},
         {"M"}};
   }
-  const ISAInfoBase *implementsISA() const override {
-    return m_enabledISA.get();
+  std::shared_ptr<ISAInfoBase> implementsISA() const override {
+    return m_enabledISA; // return enabled ISA instance per updated processor interface
+  }
+  std::shared_ptr<const ISAInfoBase> fullISA() const override {
+    return RVISA::fullISA<XLEN>(); // expose the full ISA description to the UI/decoder
   }
 
-  const std::set<RegisterFileType> registerFiles() const override {
-    std::set<RegisterFileType> rfs;
-    rfs.insert(RegisterFileType::GPR);
+  const std::set<std::string_view> registerFiles() const override {
+    std::set<std::string_view> rfs;
+    rfs.insert(RVISA::GPR); // use new register file identifier type
 
     if (implementsISA()->extensionEnabled("F")) {
-      rfs.insert(RegisterFileType::FPR);
+      rfs.insert(RVISA::FPR); // add floating-point register file only when F is enabled
     }
     return rfs;
   }
@@ -646,9 +649,9 @@ public:
   bool currentInstructionIsBranch() override {
     unsigned opcode = uncompress->exp_instr.uValue() & 0x7F;
     switch (opcode) {
-    case RVISA::Opcode::JAL:
-    case RVISA::Opcode::JALR:
-    case RVISA::Opcode::BRANCH:
+    case RVISA::OpcodeID::JAL: // updated to new opcode enum type
+    case RVISA::OpcodeID::JALR:
+    case RVISA::OpcodeID::BRANCH:
       return true;
     default:
       return false;
@@ -657,22 +660,22 @@ public:
 
   bool currentInstructionIsConditional() override {
     unsigned opcode = uncompress->exp_instr.uValue() & 0x7F;
-    return opcode == RVISA::Opcode::BRANCH;
+    return opcode == RVISA::OpcodeID::BRANCH; // updated to new opcode enum type
   }
 
   VInt currentInstructionImmediate() override {
     unsigned opcode = uncompress->exp_instr.uValue() & 0x7F;
     switch (opcode) {
-    case RVISA::Opcode::JAL: {
+    case RVISA::OpcodeID::JAL: { // updated to new opcode enum type
       const auto fields = RVInstrParser::getParser()->decodeJ32Instr(
           uncompress->exp_instr.uValue());
       return VT_U(signextend<21>(fields[0] << 20 | fields[1] << 1 |
                                  fields[2] << 11 | fields[3] << 12));
     }
-    case RVISA::Opcode::JALR: {
+    case RVISA::OpcodeID::JALR: { // updated to new opcode enum type
       return VT_U(signextend<12>((uncompress->exp_instr.uValue() >> 20)));
     }
-    case RVISA::Opcode::BRANCH: {
+    case RVISA::OpcodeID::BRANCH: { // updated to new opcode enum type
       const auto fields = RVInstrParser::getParser()->decodeB32Instr(
           uncompress->exp_instr.uValue());
       return VT_U(signextend<13>((fields[0] << 12) | (fields[1] << 5) |

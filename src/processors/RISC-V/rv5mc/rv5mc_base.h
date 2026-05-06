@@ -304,6 +304,8 @@ public:
     return rfs;
   }
 
+  bool supportsBranchPrediction() const override { return false; } // added to satisfy the processor interface
+
 private:
   bool m_finishInNextCycle = false;
   bool m_finished = false;

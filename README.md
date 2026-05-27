@@ -1,3 +1,49 @@
+# Ripes with branch prediction plugin
+
+## About This Fork
+
+This repository is a fork of [mortbopet/Ripes](https://github.com/mortbopet/Ripes), extended with a branch prediction plugin originally developed by [@anglothefloof](https://github.com/anglothefloof/Ripes/tree/branch-predictor).
+
+Since [@anglothefloof](https://github.com/anglothefloof/Ripes/tree/branch-predictor)'s implementation was built against an older version of Ripes, compatibility updates were made with the help of GitHub Copilot to bring it in line with the current codebase. All credit for the original branch prediction implementation goes to [@anglothefloof](https://github.com/anglothefloof/Ripes/tree/branch-predictor).
+
+## Using Branch Prediction
+
+1. Open Ripes
+2. Select the **"5-stage processor w/ branch prediction"** processor
+3. Open the **Branch Prediction** window
+4. Choose a branch prediction policy under **"Prediction Preset"**
+   > Note: Only *Always Taken* and *Always Not Taken* have been verified to work correctly
+5. Run your program as usual
+
+The branch predictor handles all jump and branch instructions.
+
+
+## Build instructions for MAC
+### Prerequisites
+```bash
+brew install cmake
+brew install qt@6
+```
+
+### Clone the Repository
+```bash
+git clone --recursive https://github.com/davidbohman/Ripes-plugin.git
+cd Ripes
+```
+> **Note:** The `--recursive` flag is required to fetch all submodules
+
+### Build
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_PREFIX_PATH=$(brew --prefix qt@6) -DCMAKE_BUILD_TYPE=Release
+make -j$(sysctl -n hw.logicalcpu)
+```
+
+### Build instructions for Windows and Linux 
+
+- Given in original Ripes repo readme down below
+
+
 # Ripes
 [![Windows / Qt 6.5.0](https://github.com/mortbopet/Ripes/actions/workflows/windows-release.yml/badge.svg)](https://github.com/mortbopet/Ripes/actions/workflows/windows-release.yml)
 [![Mac release / Qt 6.5.0](https://github.com/mortbopet/Ripes/actions/workflows/mac-release.yml/badge.svg)](https://github.com/mortbopet/Ripes/actions/workflows/mac-release.yml)

@@ -313,7 +313,7 @@ void BranchTab::updateStatistics() {
   m_ui->numBranch->setText(QString::number(getNumConditional()));
   m_ui->numMiss->setText(QString::number(getNumConditionalMiss()));
   double accuracy = getConditionalAccuracy();
-  if (isnan(accuracy)) {
+  if (std::isnan(accuracy)) {
     accuracy = 0;
   }
   m_ui->branchAccuracy->setText(QString::number(accuracy, 'g', 5) + "%");
